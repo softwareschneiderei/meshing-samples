@@ -11,28 +11,50 @@
 #define X .525731112119133606f
 #define Z .850650808352039932f
 
-static GLfloat vdata[12][3]={
+struct v3
+{
+	v3(float x, float y, float z)
+	{
+		data[0]=x;
+		data[1]=y;
+		data[2]=z;
+	}
 
-	{-X, 0.0f, Z},{X, 0.0f, Z},{-X, 0.0f, -Z},{X, 0.0f, -Z},
+	v3(float v) : v3(v,v,v)
+	{
+	}
 
-	{0.0f, Z, X},{0.0f, Z, -X},{0.0f, -Z, X},{0.0f, -Z, -X},
+	operator const float*() const
+	{
+		return data;
+	}
 
-	{Z, X, 0.0f},{-Z, X, 0.0f},{Z, -X, 0.0f},{-Z, -X, 0.0f}
-
+	float data[3];
 };
 
-static GLuint tindices[20][3]={
+struct triangle
+{
+	int vertex[3];
+};
 
-	{0,4,1},{0,9,4},{9,5,4},{4,5,8},{4,8,1},
+namespace icosahedron
+{
+	static const v3 vertices[12]={
+		{-X, 0.0f, Z}, {X, 0.0f, Z}, {-X, 0.0f, -Z}, {X, 0.0f, -Z},
+		{0.0f, Z, X}, {0.0f, Z, -X}, {0.0f, -Z, X}, {0.0f, -Z, -X},
+		{Z, X, 0.0f}, {-Z, X, 0.0f}, {Z, -X, 0.0f}, {-Z, -X, 0.0f}
+	};
 
-	{8,10,1},{8,3,10},{5,3,8},{5,2,3},{2,7,3},
+	static const triangle triangles[20]=
+	{
+		{0,4,1},{0,9,4},{9,5,4},{4,5,8},{4,8,1},
+		{8,10,1},{8,3,10},{5,3,8},{5,2,3},{2,7,3},
+		{7,10,3},{7,6,10},{7,11,6},{11,0,6},{0,1,6},
+		{6,1,10},{9,0,11},{9,11,2},{9,2,5},{7,2,11}
+	};}
 
-	{7,10,3},{7,6,10},{7,11,6},{11,0,6},{0,1,6},
 
-	{6,1,10},{9,0,11},{9,11,2},{9,2,5},{7,2,11}};
-
-
-void Display_InitGL()
+void InitGL()
 {
 	glShadeModel(GL_SMOOTH);
 	glClearDepth(1.0f);
@@ -43,8 +65,8 @@ void Display_InitGL()
 	glCullFace(GL_BACK);
 	//glEnable(GL_CULL_FACE);
 }
-/* function to reset our viewport after a window resize */
-int Display_SetViewport(int width, int height)
+
+int SetupViewport(int width, int height)
 {
 	if (height==0) {
 		height=1;
@@ -76,9 +98,10 @@ void Render(float angle)
 
 	for (int i=0; i<20; i++)
 	{
-		glVertex3fv(&vdata[tindices[i][0]][0]);
-		glVertex3fv(&vdata[tindices[i][1]][0]);
-		glVertex3fv(&vdata[tindices[i][2]][0]);
+		for (int c=0; c<3; ++c)
+		{
+			glVertex3fv(icosahedron::vertices[icosahedron::triangles[i].vertex[c]]);
+		}
 	}
 
 	glEnd();
@@ -110,13 +133,14 @@ int CALLBACK WinMain(
 
 	auto context=SDL_GL_CreateContext(window);
 
-	Display_InitGL();
+	InitGL();
 
-	Display_SetViewport(800, 600);
+	SetupViewport(800, 600);
 
 	bool quit=false;
 	float angle=0.f;
-	while (!quit) {
+	while (!quit) 
+	{
 		SDL_Event e;
 		while (SDL_PollEvent(&e)!=0)
 		{
