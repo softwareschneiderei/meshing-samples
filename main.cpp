@@ -7,9 +7,8 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <gl/GLU.h>
+#include <vector>
 
-#define X .525731112119133606f
-#define Z .850650808352039932f
 
 struct v3
 {
@@ -37,22 +36,34 @@ struct triangle
 	int vertex[3];
 };
 
+
+using TriangleList=std::vector<triangle>;
+using VertexList=std::vector<v3>;
+
 namespace icosahedron
 {
-	static const v3 vertices[12]={
-		{-X, 0.0f, Z}, {X, 0.0f, Z}, {-X, 0.0f, -Z}, {X, 0.0f, -Z},
-		{0.0f, Z, X}, {0.0f, Z, -X}, {0.0f, -Z, X}, {0.0f, -Z, -X},
-		{Z, X, 0.0f}, {-Z, X, 0.0f}, {Z, -X, 0.0f}, {-Z, -X, 0.0f}
-	};
+const float X = .525731112119133606f;
+const float Z = .850650808352039932f;
 
-	static const triangle triangles[20]=
-	{
-		{0,4,1},{0,9,4},{9,5,4},{4,5,8},{4,8,1},
-		{8,10,1},{8,3,10},{5,3,8},{5,2,3},{2,7,3},
-		{7,10,3},{7,6,10},{7,11,6},{11,0,6},{0,1,6},
-		{6,1,10},{9,0,11},{9,11,2},{9,2,5},{7,2,11}
-	};}
+static const VertexList vertices=
+{
+	{-X, 0.0f, Z}, {X, 0.0f, Z}, {-X, 0.0f, -Z}, {X, 0.0f, -Z},
+	{0.0f, Z, X}, {0.0f, Z, -X}, {0.0f, -Z, X}, {0.0f, -Z, -X},
+	{Z, X, 0.0f}, {-Z, X, 0.0f}, {Z, -X, 0.0f}, {-Z, -X, 0.0f}
+};
 
+static const TriangleList triangles=
+{
+	{0,4,1},{0,9,4},{9,5,4},{4,5,8},{4,8,1},
+	{8,10,1},{8,3,10},{5,3,8},{5,2,3},{2,7,3},
+	{7,10,3},{7,6,10},{7,11,6},{11,0,6},{0,1,6},
+	{6,1,10},{9,0,11},{9,11,2},{9,2,5},{7,2,11}
+};
+}
+
+//std::pair<VertexList, TriangleList> make_icosphere(int subdivisions)
+//{
+//}
 
 void InitGL()
 {
@@ -85,7 +96,22 @@ int SetupViewport(int width, int height)
 	return 1;
 }
 
-void Render(float angle)
+void RenderMesh(VertexList const& vertices, TriangleList const& triangles)
+{
+	glBegin(GL_TRIANGLES);
+
+	for (auto&& triangle : triangles)
+	{
+		for (int c=0; c<3; ++c)
+		{
+			glVertex3fv(vertices[triangle.vertex[c]]);
+		}
+	}
+
+	glEnd();
+}
+
+void Render(float angle, VertexList const& vertices, TriangleList const& triangles)
 {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -94,17 +120,7 @@ void Render(float angle)
 	glTranslatef(0.f, 0.0f, -6.0f);
 	glRotatef(angle, 0.f, 1.f, 0.f);
 
-	glBegin(GL_TRIANGLES);
-
-	for (int i=0; i<20; i++)
-	{
-		for (int c=0; c<3; ++c)
-		{
-			glVertex3fv(icosahedron::vertices[icosahedron::triangles[i].vertex[c]]);
-		}
-	}
-
-	glEnd();
+	RenderMesh(vertices, triangles);
 }
 
 int CALLBACK WinMain(
@@ -137,6 +153,9 @@ int CALLBACK WinMain(
 
 	SetupViewport(800, 600);
 
+	VertexList vertices=icosahedron::vertices;
+	TriangleList triangles=icosahedron::triangles;
+
 	bool quit=false;
 	float angle=0.f;
 	while (!quit) 
@@ -147,7 +166,7 @@ int CALLBACK WinMain(
 			if (e.type==SDL_QUIT) { quit=true; }
 		}
 
-		Render(angle);
+		Render(angle, vertices, triangles);
 		SDL_GL_SwapWindow(window);
 		angle+=0.1f;
 
