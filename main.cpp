@@ -8,7 +8,9 @@
 #include <SDL_opengl.h>
 #include <gl/GLU.h>
 #include <vector>
-
+#include <tuple>
+#include <map>
+#include <array>
 
 struct v3
 {
@@ -19,7 +21,7 @@ struct v3
 		data[2]=z;
 	}
 
-	v3(float v) : v3(v,v,v)
+	v3(float v=0.f) : v3(v,v,v)
 	{
 	}
 
@@ -28,16 +30,59 @@ struct v3
 		return data;
 	}
 
+	v3& operator+=(v3 const& rhs)
+	{
+		for (int i=0; i<3; ++i)
+			data[i]+=rhs[i];
+		return *this;
+	}
+
+	v3& operator*=(float rhs)
+	{
+		for (int i=0; i<3; ++i)
+			data[i]*=rhs;
+		return *this;
+	}
+
+	float squared() const
+	{
+		float result=0.f;
+		for (int i=0; i<3; ++i)
+			result+=data[i]*data[i];
+		return result;
+	}
+
 	float data[3];
 };
 
-struct triangle
+v3 operator+(v3 lhs, v3 const& rhs)
 {
-	int vertex[3];
+	return lhs+=rhs;
+}
+
+v3 operator*(v3 lhs, float rhs)
+{
+	return lhs*=rhs;
+}
+
+v3 operator/(v3 lhs, float rhs)
+{
+	return lhs*=(1.f/rhs);
+}
+
+v3 normalize(v3 rhs)
+{
+	return rhs/std::sqrt(rhs.squared());
+}
+
+using Index=std::uint32_t;
+
+struct Triangle
+{
+	Index vertex[3];
 };
 
-
-using TriangleList=std::vector<triangle>;
+using TriangleList=std::vector<Triangle>;
 using VertexList=std::vector<v3>;
 
 namespace icosahedron
@@ -61,9 +106,53 @@ static const TriangleList triangles=
 };
 }
 
-//std::pair<VertexList, TriangleList> make_icosphere(int subdivisions)
-//{
-//}
+using Lookup=std::map<std::pair<Index, Index>, Index>;
+
+Index vertex_for_edge(Lookup& lookup, VertexList& vertices, Index first, Index second)
+{
+	auto inserted=lookup.insert({{first, second}, vertices.size()});
+	if (inserted.second)
+	{
+		vertices.push_back(normalize(vertices[first]+vertices[second]));
+	}
+
+	return inserted.first->second;
+}
+
+TriangleList subdivide(VertexList& vertices, TriangleList triangles)
+{
+	Lookup lookup;
+	TriangleList new_triangles;
+
+	for (auto&& triangle:triangles)
+	{
+		std::array<Index, 3> mid;
+		for (int edge=0; edge<3; ++edge)
+		{
+			mid[edge]=vertex_for_edge(lookup, vertices, triangle.vertex[edge], triangle.vertex[(edge+1)%3]);
+		}
+
+		new_triangles.push_back({triangle.vertex[0], mid[0], mid[2]});
+		new_triangles.push_back({triangle.vertex[1], mid[1], mid[0]});
+		new_triangles.push_back({triangle.vertex[2], mid[2], mid[1]});
+		new_triangles.push_back({mid[0], mid[1], mid[2]});
+	}
+
+	return new_triangles;
+}
+
+std::pair<VertexList, TriangleList> make_icosphere(int subdivisions)
+{
+	VertexList vertices=icosahedron::vertices;
+	TriangleList triangles=icosahedron::triangles;
+
+	for (int i=0; i<subdivisions; ++i)
+	{
+		triangles=subdivide(vertices, triangles);
+	}
+
+	return{vertices, triangles};
+}
 
 void InitGL()
 {
@@ -153,8 +242,10 @@ int CALLBACK WinMain(
 
 	SetupViewport(800, 600);
 
-	VertexList vertices=icosahedron::vertices;
-	TriangleList triangles=icosahedron::triangles;
+	VertexList vertices;
+	TriangleList triangles;
+
+	std::tie(vertices, triangles)=make_icosphere(3);
 
 	bool quit=false;
 	float angle=0.f;
