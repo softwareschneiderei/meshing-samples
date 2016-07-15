@@ -8,85 +8,80 @@
 #include <SDL_opengl.h>
 #include <gl/GLU.h>
 
+#define X .525731112119133606f
+#define Z .850650808352039932f
+
+static GLfloat vdata[12][3]={
+
+	{-X, 0.0f, Z},{X, 0.0f, Z},{-X, 0.0f, -Z},{X, 0.0f, -Z},
+
+	{0.0f, Z, X},{0.0f, Z, -X},{0.0f, -Z, X},{0.0f, -Z, -X},
+
+	{Z, X, 0.0f},{-Z, X, 0.0f},{Z, -X, 0.0f},{-Z, -X, 0.0f}
+
+};
+
+static GLuint tindices[20][3]={
+
+	{0,4,1},{0,9,4},{9,5,4},{4,5,8},{4,8,1},
+
+	{8,10,1},{8,3,10},{5,3,8},{5,2,3},{2,7,3},
+
+	{7,10,3},{7,6,10},{7,11,6},{11,0,6},{0,1,6},
+
+	{6,1,10},{9,0,11},{9,11,2},{9,2,5},{7,2,11}};
+
 
 void Display_InitGL()
 {
-	/* Enable smooth shading */
 	glShadeModel(GL_SMOOTH);
-
-	/* Set the background black */
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-
-	/* Depth buffer setup */
 	glClearDepth(1.0f);
-
-	/* Enables Depth Testing */
 	glEnable(GL_DEPTH_TEST);
-
-	/* The Type Of Depth Test To Do */
 	glDepthFunc(GL_LEQUAL);
-
-	/* Really Nice Perspective Calculations */
 	glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glCullFace(GL_BACK);
+	//glEnable(GL_CULL_FACE);
 }
 /* function to reset our viewport after a window resize */
 int Display_SetViewport(int width, int height)
 {
-	/* Height / width ration */
-	GLfloat ratio;
-
-	/* Protect against a divide by zero */
 	if (height==0) {
 		height=1;
 	}
 
-	ratio=(GLfloat)width/(GLfloat)height;
-
-	/* Setup our viewport. */
+	auto ratio=(GLfloat)width/(GLfloat)height;
 	glViewport(0, 0, (GLsizei)width, (GLsizei)height);
 
-	/* change to the projection matrix and set our viewing volume. */
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-
-	/* Set our perspective */
 	gluPerspective(45.0f, ratio, 0.1f, 100.0f);
 
-	/* Make sure we're chaning the model view and not the projection */
 	glMatrixMode(GL_MODELVIEW);
-
-	/* Reset The View */
 	glLoadIdentity();
 
 	return 1;
 }
 
-void Display_Render()
+void Render(float angle)
 {
-	/* Set the background black */
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	/* Clear The Screen And The Depth Buffer */
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
-	/* Move Left 1.5 Units And Into The Screen 6.0 */
 	glLoadIdentity();
-	glTranslatef(-1.5f, 0.0f, -6.0f);
+	glTranslatef(0.f, 0.0f, -6.0f);
+	glRotatef(angle, 0.f, 1.f, 0.f);
 
-	glBegin(GL_TRIANGLES);            /* Drawing Using Triangles */
-	glVertex3f(0.0f, 1.0f, 0.0f); /* Top */
-	glVertex3f(-1.0f, -1.0f, 0.0f); /* Bottom Left */
-	glVertex3f(1.0f, -1.0f, 0.0f); /* Bottom Right */
-	glEnd();                           /* Finished Drawing The Triangle */
+	glBegin(GL_TRIANGLES);
 
-									   /* Move Right 3 Units */
-	glTranslatef(3.0f, 0.0f, 0.0f);
+	for (int i=0; i<20; i++)
+	{
+		glVertex3fv(&vdata[tindices[i][0]][0]);
+		glVertex3fv(&vdata[tindices[i][1]][0]);
+		glVertex3fv(&vdata[tindices[i][2]][0]);
+	}
 
-	glBegin(GL_QUADS);                /* Draw A Quad */
-	glVertex3f(-1.0f, 1.0f, 0.0f); /* Top Left */
-	glVertex3f(1.0f, 1.0f, 0.0f); /* Top Right */
-	glVertex3f(1.0f, -1.0f, 0.0f); /* Bottom Right */
-	glVertex3f(-1.0f, -1.0f, 0.0f); /* Bottom Left */
-	glEnd();                           /* Done Drawing The Quad */
+	glEnd();
 }
 
 int CALLBACK WinMain(
@@ -97,7 +92,7 @@ int CALLBACK WinMain(
 	)
 {
 	// Initialize SDL's Video subsystem
-	if (SDL_Init(SDL_INIT_VIDEO) < 0)
+	if (SDL_Init(SDL_INIT_VIDEO)<0)
 	{
 		return -1;
 	}
@@ -120,15 +115,18 @@ int CALLBACK WinMain(
 	Display_SetViewport(800, 600);
 
 	bool quit=false;
-	while( !quit ) {
+	float angle=0.f;
+	while (!quit) {
 		SDL_Event e;
-		while( SDL_PollEvent( &e ) != 0 )
+		while (SDL_PollEvent(&e)!=0)
 		{
-			if( e.type == SDL_QUIT ) { quit = true; }
+			if (e.type==SDL_QUIT) { quit=true; }
 		}
 
-		Display_Render();
+		Render(angle);
 		SDL_GL_SwapWindow(window);
+		angle+=0.1f;
+
 	}
 	SDL_Quit();
 
