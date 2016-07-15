@@ -1,9 +1,4 @@
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-
+#include <cmath>
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <gl/GLU.h>
@@ -87,14 +82,15 @@ using VertexList=std::vector<v3>;
 
 namespace icosahedron
 {
-const float X = .525731112119133606f;
-const float Z = .850650808352039932f;
+const float X=.525731112119133606f;
+const float Z=.850650808352039932f;
+const float N=0.f;
 
 static const VertexList vertices=
 {
-  {-X, 0.0f, Z}, {X, 0.0f, Z}, {-X, 0.0f, -Z}, {X, 0.0f, -Z},
-  {0.0f, Z, X}, {0.0f, Z, -X}, {0.0f, -Z, X}, {0.0f, -Z, -X},
-  {Z, X, 0.0f}, {-Z, X, 0.0f}, {Z, -X, 0.0f}, {-Z, -X, 0.0f}
+  {-X,N,Z}, {X,N,Z}, {-X,N,-Z}, {X,N,-Z},
+  {N,Z,X}, {N,Z,-X}, {N,-Z,X}, {N,-Z,-X},
+  {Z,X,N}, {-Z,X, N}, {Z,-X,N}, {-Z,-X, N}
 };
 
 static const TriangleList triangles=
@@ -108,7 +104,8 @@ static const TriangleList triangles=
 
 using Lookup=std::map<std::pair<Index, Index>, Index>;
 
-Index vertex_for_edge(Lookup& lookup, VertexList& vertices, Index first, Index second)
+Index vertex_for_edge(Lookup& lookup,
+  VertexList& vertices, Index first, Index second)
 {
   Lookup::key_type key(first, second);
   if (key.first>key.second)
@@ -117,35 +114,42 @@ Index vertex_for_edge(Lookup& lookup, VertexList& vertices, Index first, Index s
   auto inserted=lookup.insert({key, vertices.size()});
   if (inserted.second)
   {
-    vertices.push_back(normalize(vertices[first]+vertices[second]));
+    auto& edge0=vertices[first];
+    auto& edge1=vertices[second];
+    auto point=normalize(edge0+edge1);
+    vertices.push_back(point);
   }
 
   return inserted.first->second;
 }
 
-TriangleList subdivide(VertexList& vertices, TriangleList triangles)
+TriangleList subdivide(VertexList& vertices,
+  TriangleList triangles)
 {
   Lookup lookup;
-  TriangleList new_triangles;
+  TriangleList result;
 
-  for (auto&& triangle:triangles)
+  for (auto&& each:triangles)
   {
     std::array<Index, 3> mid;
     for (int edge=0; edge<3; ++edge)
     {
-      mid[edge]=vertex_for_edge(lookup, vertices, triangle.vertex[edge], triangle.vertex[(edge+1)%3]);
+      mid[edge]=vertex_for_edge(lookup, vertices,
+        each.vertex[edge], each.vertex[(edge+1)%3]);
     }
 
-    new_triangles.push_back({triangle.vertex[0], mid[0], mid[2]});
-    new_triangles.push_back({triangle.vertex[1], mid[1], mid[0]});
-    new_triangles.push_back({triangle.vertex[2], mid[2], mid[1]});
-    new_triangles.push_back({mid[0], mid[1], mid[2]});
+    result.push_back({each.vertex[0], mid[0], mid[2]});
+    result.push_back({each.vertex[1], mid[1], mid[0]});
+    result.push_back({each.vertex[2], mid[2], mid[1]});
+    result.push_back({mid[0], mid[1], mid[2]});
   }
 
-  return new_triangles;
+  return result;
 }
 
-std::pair<VertexList, TriangleList> make_icosphere(int subdivisions)
+using IndexedMesh=std::pair<VertexList, TriangleList>;
+
+IndexedMesh make_icosphere(int subdivisions)
 {
   VertexList vertices=icosahedron::vertices;
   TriangleList triangles=icosahedron::triangles;
@@ -206,12 +210,13 @@ void RenderMesh(VertexList const& vertices, TriangleList const& triangles)
 
 void Render(float angle, VertexList const& vertices, TriangleList const& triangles)
 {
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
   glLoadIdentity();
   glTranslatef(0.f, 0.0f, -6.0f);
   glRotatef(angle, 0.f, 1.f, 0.f);
+  glColor3f(0.f, 0.f, 0.f);
 
   RenderMesh(vertices, triangles);
 }
@@ -249,7 +254,7 @@ int CALLBACK WinMain(
   VertexList vertices;
   TriangleList triangles;
 
-  std::tie(vertices, triangles)=make_icosphere(3);
+  std::tie(vertices, triangles)=make_icosphere(2);
 
   bool quit=false;
   float angle=0.f;
