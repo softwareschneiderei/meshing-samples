@@ -131,7 +131,7 @@ v3 cyan{0.f, 1.f, 1.f};
 v3 purple{1.f, 0.f, 1.f};
 };
 
-namespace box
+namespace box_with_seams
 {
 const float D=1/std::sqrt(3.0f);
 static const ColorVertexList vertices=
@@ -238,10 +238,13 @@ TriangleList subdivide_2(ColorVertexList& vertices,
   {
     auto edge=longest_edge(vertices, each);
     Index mid=vertex_for_edge(lookup, vertices,
-                               each.vertex[edge], each.vertex[(edge+1)%3]);
+      each.vertex[edge], each.vertex[(edge+1)%3]);
 
-    result.push_back({each.vertex[edge], mid, each.vertex[(edge+2)%3]});
-    result.push_back({each.vertex[(edge+2)%3], mid, each.vertex[(edge+1)%3]});
+    result.push_back({each.vertex[edge],
+      mid, each.vertex[(edge+2)%3]});
+
+    result.push_back({each.vertex[(edge+2)%3],
+      mid, each.vertex[(edge+1)%3]});
   }
 
   return result;
@@ -265,8 +268,8 @@ IndexedMesh make_icosphere(int subdivisions)
 
 ColoredIndexMesh make_spherified_cube_seams(int subdivisions)
 {
-  ColorVertexList vertices=box::vertices;
-  TriangleList triangles=box::triangles;
+  ColorVertexList vertices=box_with_seams::vertices;
+  TriangleList triangles=box_with_seams::triangles;
 
   for (int i=0; i<subdivisions; ++i)
   {
@@ -387,7 +390,7 @@ int CALLBACK WinMain(
   ColorVertexList vertices;
   TriangleList triangles;
 
-  std::tie(vertices, triangles)=make_spherified_cube_seams(8);
+  std::tie(vertices, triangles)=make_spherified_cube_seams(6);
 
   bool quit=false;
   float angle=0.f;
