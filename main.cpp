@@ -31,6 +31,13 @@ struct v3
       data[i]+=rhs[i];
     return *this;
   }
+  
+  v3& operator-=(v3 const& rhs)
+  {
+    for (int i=0; i<3; ++i)
+      data[i]-=rhs[i];
+    return *this;
+  }
 
   v3& operator*=(float rhs)
   {
@@ -55,6 +62,11 @@ v3 operator+(v3 lhs, v3 const& rhs)
   return lhs+=rhs;
 }
 
+v3 operator-(v3 lhs, v3 const& rhs)
+{
+  return lhs-=rhs;
+}
+
 v3 operator*(v3 lhs, float rhs)
 {
   return lhs*=rhs;
@@ -77,8 +89,15 @@ struct Triangle
   Index vertex[3];
 };
 
+struct ColorPosition
+{
+  v3 color;
+  v3 position;
+};
+
 using TriangleList=std::vector<Triangle>;
 using VertexList=std::vector<v3>;
+using ColorVertexList=std::vector<ColorPosition>;
 
 namespace icosahedron
 {
@@ -102,8 +121,54 @@ static const TriangleList triangles=
 };
 }
 
+namespace color
+{
+v3 red{1.f, 0.f, 0.f};
+v3 green{0.f, 1.f, 0.f};
+v3 blue{0.f, 0.f, 1.f};
+v3 yellow{1.f, 1.f, 0.f};
+v3 cyan{0.f, 1.f, 1.f};
+v3 purple{1.f, 0.f, 1.f};
+};
+
+namespace box
+{
+const float D=1/std::sqrt(3.0f);
+static const ColorVertexList vertices=
+{
+  {color::red,{-D,-D,-D}},{color::red,{D,-D,-D}},{color::red,{D,D,-D}},{color::red,{-D,D,-D}}, // back
+  {color::green,{-D,-D,D}},{color::green,{D,-D,D}},{color::green,{D,D,D}},{color::green,{-D,D,D}}, // front
+  {color::blue,{-D,-D,-D}},{color::blue,{-D,D,-D}},{color::blue,{-D,D,D}},{color::blue,{-D,-D,D}}, // left
+  {color::yellow,{D,-D,-D}},{color::yellow,{D,D,-D}},{color::yellow,{D,D,D}},{color::yellow,{D,-D,D}}, // right
+  {color::cyan,{-D,-D,-D}},{color::cyan,{D,-D,-D}},{color::cyan,{D,-D,D}},{color::cyan,{-D,-D,D}}, // bottom
+  {color::purple,{-D,D,-D}},{color::purple,{D,D,-D}},{color::purple,{D,D,D}},{color::purple,{-D,D,D}}, // top
+};
+
+static const TriangleList triangles=
+{
+  {0, 1, 2}, {0, 2, 3},
+  {4, 6, 5}, {4, 7, 6},
+  {8, 9, 10}, {8, 10, 11},
+  {12, 14, 13},{12, 15, 14},
+  {16, 17, 18},{16, 18, 19},
+  {20, 22, 21},{20, 23, 22}
+};
+
+}
+
 using Lookup=std::map<std::pair<Index, Index>, Index>;
 
+inline v3 split(v3 lhs, v3 rhs)
+{
+  return normalize(lhs+rhs);
+}
+
+inline ColorPosition split(ColorPosition lhs, ColorPosition rhs)
+{
+  return{(lhs.color+rhs.color)*0.5f, normalize(lhs.position+rhs.position)};
+}
+
+template <typename VertexList>
 Index vertex_for_edge(Lookup& lookup,
   VertexList& vertices, Index first, Index second)
 {
@@ -114,17 +179,15 @@ Index vertex_for_edge(Lookup& lookup,
   auto inserted=lookup.insert({key, vertices.size()});
   if (inserted.second)
   {
-    auto& edge0=vertices[first];
-    auto& edge1=vertices[second];
-    auto point=normalize(edge0+edge1);
-    vertices.push_back(point);
+    vertices.push_back(split(vertices[first], vertices[second]));
   }
 
   return inserted.first->second;
 }
 
-TriangleList subdivide(VertexList& vertices,
-  TriangleList triangles)
+template <typename VertexList>
+TriangleList subdivide_4(VertexList& vertices,
+                         TriangleList triangles)
 {
   Lookup lookup;
   TriangleList result;
@@ -135,7 +198,7 @@ TriangleList subdivide(VertexList& vertices,
     for (int edge=0; edge<3; ++edge)
     {
       mid[edge]=vertex_for_edge(lookup, vertices,
-        each.vertex[edge], each.vertex[(edge+1)%3]);
+                                each.vertex[edge], each.vertex[(edge+1)%3]);
     }
 
     result.push_back({each.vertex[0], mid[0], mid[2]});
@@ -147,7 +210,45 @@ TriangleList subdivide(VertexList& vertices,
   return result;
 }
 
+int longest_edge(ColorVertexList& vertices, Triangle const& triangle)
+{
+  float best=0.f;
+  int result=0;
+  for (int i=0; i<3; ++i)
+  {
+    auto a=vertices[triangle.vertex[i]].position;
+    auto b=vertices[triangle.vertex[(i+1)%3]].position;
+    float contest =(a-b).squared();
+    if (contest>best)
+    {
+      best=contest;
+      result=i;
+    }
+  }
+  return result;
+}
+
+TriangleList subdivide_2(ColorVertexList& vertices,
+                         TriangleList triangles)
+{
+  Lookup lookup;
+  TriangleList result;
+
+  for (auto&& each:triangles)
+  {
+    auto edge=longest_edge(vertices, each);
+    Index mid=vertex_for_edge(lookup, vertices,
+                               each.vertex[edge], each.vertex[(edge+1)%3]);
+
+    result.push_back({each.vertex[edge], mid, each.vertex[(edge+2)%3]});
+    result.push_back({each.vertex[(edge+2)%3], mid, each.vertex[(edge+1)%3]});
+  }
+
+  return result;
+}
+
 using IndexedMesh=std::pair<VertexList, TriangleList>;
+using ColoredIndexMesh=std::pair<ColorVertexList, TriangleList>;
 
 IndexedMesh make_icosphere(int subdivisions)
 {
@@ -156,7 +257,20 @@ IndexedMesh make_icosphere(int subdivisions)
 
   for (int i=0; i<subdivisions; ++i)
   {
-    triangles=subdivide(vertices, triangles);
+    triangles=subdivide_4(vertices, triangles);
+  }
+
+  return{vertices, triangles};
+}
+
+ColoredIndexMesh make_spherified_cube_seams(int subdivisions)
+{
+  ColorVertexList vertices=box::vertices;
+  TriangleList triangles=box::triangles;
+
+  for (int i=0; i<subdivisions; ++i)
+  {
+    triangles=subdivide_2(vertices, triangles);
   }
 
   return{vertices, triangles};
@@ -197,7 +311,7 @@ void RenderMesh(VertexList const& vertices, TriangleList const& triangles)
 {
   glBegin(GL_TRIANGLES);
 
-  for (auto&& triangle : triangles)
+  for (auto&& triangle:triangles)
   {
     for (int c=0; c<3; ++c)
     {
@@ -208,9 +322,28 @@ void RenderMesh(VertexList const& vertices, TriangleList const& triangles)
   glEnd();
 }
 
+void RenderMesh(ColorVertexList const& vertices, TriangleList const& triangles)
+{
+  glBegin(GL_TRIANGLES);
+
+  for (auto&& triangle:triangles)
+  {
+    for (int c=0; c<3; ++c)
+    {
+      auto const& vertex=vertices[triangle.vertex[c]];
+      glColor3fv(vertex.color);
+      glVertex3fv(vertex.position);
+    }
+  }
+
+  glEnd();
+}
+
+template <class VertexList>
 void Render(float angle, VertexList const& vertices, TriangleList const& triangles)
 {
-  glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+  float const backgroundLightness=0.4f;
+  glClearColor(backgroundLightness, backgroundLightness, backgroundLightness, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
   glLoadIdentity();
@@ -251,10 +384,10 @@ int CALLBACK WinMain(
 
   SetupViewport(800, 600);
 
-  VertexList vertices;
+  ColorVertexList vertices;
   TriangleList triangles;
 
-  std::tie(vertices, triangles)=make_icosphere(2);
+  std::tie(vertices, triangles)=make_spherified_cube_seams(8);
 
   bool quit=false;
   float angle=0.f;
@@ -272,6 +405,6 @@ int CALLBACK WinMain(
 
   }
   SDL_Quit();
-
+  
   return 0;
 }
